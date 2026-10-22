@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Interactive Virtual Memory Simulator for FIFO, LRU, and Optimal page replacement." />
+  <title>Virtual Memory Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">VM</div>
+        <div><strong>MemoryLab</strong><span>Virtual Memory Simulator</span></div>
+      </div>
+      <nav aria-label="Main navigation">
+        <a class="nav-link active" href="#simulator"><span>▦</span> Simulator</a>
+        <a class="nav-link" href="#comparison"><span>↗</span> Compare algorithms</a>
+        <a class="nav-link" href="#tutor"><span>✦</span> Virtual Memory Tutor</a>
+        <a class="nav-link" href="#analysis"><span>◉</span> Performance Bot</a>
+      </nav>
+      <div class="sidebar-note">
+        <span class="status-dot"></span>
+        <div><strong>Backend connection</strong><p id="connectionStatus">Checking API…</p></div>
+      </div>
+      <div class="sidebar-footer">Operating Systems · Page Replacement</div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">OPERATING SYSTEMS PROJECT</p>
+          <h1>Virtual Memory Simulator</h1>
+          <p class="subtitle">Explore how operating systems manage RAM and replace pages.</p>
+        </div>
+        <div class="api-pill"><span class="status-dot"></span><span id="apiLabel">API status: checking</span></div>
+      </header>
+
+      <section class="intro-strip">
+        <div class="intro-icon">▤</div>
+        <div><strong>See page replacement in action</strong><p>Enter a reference string, choose your available frames, and run a simulation.</p></div>
+      </section>
+
+      <section class="panel" id="simulator">
+        <div class="section-heading">
+          <div><p class="eyebrow">SIMULATION SETUP</p><h2>Configure your memory</h2></div>
+          <span class="step-tag">01 / INPUT</span>
+        </div>
+        <form id="simulationForm">
+          <div class="form-grid">
+            <label class="field field-wide">
+              <span>Page-reference sequence</span>
+              <input id="pagesInput" type="text" value="1, 2, 3, 1, 4, 2, 5" placeholder="e.g. 1, 2, 3, 1, 4, 2, 5" autocomplete="off" />
+              <small>Enter non-negative page numbers separated by commas or spaces.</small>
+            </label>
+            <label class="field">
+              <span>RAM frames</span>
+              <input id="framesInput" type="number" min="1" step="1" value="3" required />
+              <small>Number of available memory slots.</small>
+            </label>
+            <label class="field">
+              <span>Replacement algorithm</span>
+              <select id="algorithmInput">
+                <option value="FIFO">FIFO — First In, First Out</option>
+                <option value="LRU">LRU — Least Recently Used</option>
+                <option value="OPTIMAL">Optimal — Future-aware</option>
+              </select>
+              <small>Choose how a page is selected for replacement.</small>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="runButton">Run simulation <span>→</span></button>
+            <button type="button" class="btn btn-secondary" id="compareButton">Compare all algorithms</button>
+            <button type="button" class="btn btn-quiet" id="resetButton">Reset</button>
+          </div>
+          <p class="message" id="formMessage" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section id="results" class="results-section hidden">
+        <div class="section-heading"><div><p class="eyebrow">SIMULATION OUTPUT</p><h2 id="resultTitle">Results</h2></div><span class="step-tag">02 / RESULTS</span></div>
+        <div class="metric-grid">
+          <article class="metric-card"><span>Total references</span><strong id="totalMetric">—</strong><small>Pages requested</small></article>
+          <article class="metric-card"><span>Page hits</span><strong id="hitsMetric">—</strong><small class="metric-green">Already in RAM</small></article>
+          <article class="metric-card"><span>Page faults</span><strong id="faultsMetric">—</strong><small class="metric-orange">Page must be loaded</small></article>
+          <article class="metric-card"><span>Hit rate</span><strong id="hitRateMetric">—</strong><small>Percentage of hits</small></article>
+          <article class="metric-card"><span>Fault rate</span><strong id="faultRateMetric">—</strong><small>Percentage of faults</small></article>
+        </div>
+        <div class="panel">
+          <div class="section-heading compact"><div><h2>Frame-by-frame history</h2><p class="muted">Each column shows RAM after the corresponding page reference.</p></div><div class="legend"><span class="legend-hit"></span> Hit <span class="legend-fault"></span> Fault</div></div>
+          <div class="table-wrap"><table id="historyTable"><thead></thead><tbody></tbody></table></div>
+        </div>
+        <div class="panel chart-panel">
+          <div class="section-heading compact"><div><h2>Algorithm performance</h2><p class="muted">Compare page hits and faults for the same input.</p></div></div>
+          <div id="comparisonChart" class="bar-chart" aria-label="Algorithm performance chart"></div>
+          <div id="comparisonTableWrap" class="table-wrap hidden"><table id="comparisonTable"><thead></thead><tbody></tbody></table></div>
+        </div>
+      </section>
+
+      <section class="bot-grid">
+        <article class="panel bot-panel" id="tutor">
+          <div class="bot-heading"><div class="bot-icon purple">✦</div><div><p class="eyebrow">BOT 01</p><h2>Virtual Memory Tutor</h2></div></div>
+          <p class="muted">Ask for a simple explanation of virtual memory or a page-replacement algorithm.</p>
+          <label class="field"><span>Your question</span><textarea id="tutorQuestion" rows="3" placeholder="What is a page fault? Explain FIFO simply…"></textarea></label>
+          <button class="btn btn-primary" id="tutorButton" type="button">Ask tutor <span>→</span></button>
+          <div class="bot-response" id="tutorResponse" aria-live="polite">Tutor endpoint is not connected yet. This panel is ready for the bot API.</div>
+        </article>
+        <article class="panel bot-panel" id="analysis">
+          <div class="bot-heading"><div class="bot-icon orange">◉</div><div><p class="eyebrow">BOT 02</p><h2>Performance Analysis Bot</h2></div></div>
+          <p class="muted">Run a simulation first, then ask the bot to interpret the results.</p>
+          <label class="field"><span>What would you like to know?</span><textarea id="analysisQuestion" rows="3" placeholder="Which algorithm performs best for this sequence?"></textarea></label>
+          <button class="btn btn-secondary" id="analysisButton" type="button">Analyze results <span>→</span></button>
+          <div class="bot-response" id="analysisResponse" aria-live="polite">Analysis endpoint is not connected yet. This panel is ready for the bot API.</div>
+        </article>
+      </section>
+      <footer>MemoryLab · Educational simulator · No database required</footer>
+    </main>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
