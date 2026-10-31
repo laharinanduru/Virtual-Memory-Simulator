@@ -51,20 +51,31 @@
           <div class="form-grid">
             <label class="field field-wide">
               <span>Page-reference sequence</span>
-              <input id="pagesInput" type="text" value="1, 2, 3, 1, 4, 2, 5" placeholder="e.g. 1, 2, 3, 1, 4, 2, 5" autocomplete="off" />
-              <small>Enter non-negative page numbers separated by commas or spaces.</small>
+<input
+  id="pagesInput"
+  type="text"
+  placeholder="Enter page numbers, e.g. 2, 3, 2, 1"
+  autocomplete="off"
+  required
+/>              <small>Enter non-negative page numbers separated by commas or spaces.</small>
             </label>
             <label class="field">
               <span>RAM frames</span>
-              <input id="framesInput" type="number" min="1" step="1" value="3" required />
-              <small>Number of available memory slots.</small>
+<input
+  id="framesInput"
+  type="number"
+  min="1"
+  step="1"
+  placeholder="Enter number of frames"
+  required
+/>              <small>Number of available memory slots.</small>
             </label>
             <label class="field">
               <span>Replacement algorithm</span>
               <select id="algorithmInput">
-                <option value="FIFO">FIFO — First In, First Out</option>
-                <option value="LRU">LRU — Least Recently Used</option>
-                <option value="OPTIMAL">Optimal — Future-aware</option>
+                <option value="FIFO">FIFO - First In, First Out</option>
+                <option value="LRU">LRU - Least Recently Used</option>
+                <option value="OPTIMAL">Optimal - Future-aware</option>
               </select>
               <small>Choose how a page is selected for replacement.</small>
             </label>
@@ -83,8 +94,11 @@
         <div class="metric-grid">
           <article class="metric-card"><span>Total references</span><strong id="totalMetric">—</strong><small>Pages requested</small></article>
           <article class="metric-card"><span>Page hits</span><strong id="hitsMetric">—</strong><small class="metric-green">Already in RAM</small></article>
-          <article class="metric-card"><span>Page faults</span><strong id="faultsMetric">—</strong><small class="metric-orange">Page must be loaded</small></article>
-          <article class="metric-card"><span>Hit rate</span><strong id="hitRateMetric">—</strong><small>Percentage of hits</small></article>
+<article class="metric-card">
+  <span>Page faults</span>
+  <strong id="faultsMetric">—</strong>
+  <small class="metric-orange">Pages not present in RAM when requested</small>
+</article>          <article class="metric-card"><span>Hit rate</span><strong id="hitRateMetric">—</strong><small>Percentage of hits</small></article>
           <article class="metric-card"><span>Fault rate</span><strong id="faultRateMetric">—</strong><small>Percentage of faults</small></article>
         </div>
         <div class="panel">
