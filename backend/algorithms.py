@@ -1,4 +1,3 @@
-
 def simulate_fifo(pages, frame_count):
     frames = []
     history = []
