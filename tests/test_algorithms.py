@@ -50,6 +50,29 @@ class TestPageReplacementAlgorithms(unittest.TestCase):
         self.assertEqual(result["page_hits"], 0)
         self.assertEqual(result["page_faults"], 3)
 
+    def test_result_metrics(self):
+        result = simulate_fifo([1, 1, 2], 2)
+
+        self.assertEqual(result["total_references"], 3)
+        self.assertEqual(result["page_hits"], 1)
+        self.assertEqual(result["page_faults"], 2)
+        self.assertEqual(result["hit_rate"], round(1 / 3, 4))
+        self.assertEqual(result["fault_rate"], round(2 / 3, 4))
+
+    def test_frame_history(self):
+        result = simulate_fifo([1, 2, 1], 2)
+
+        self.assertEqual(result["history"][0]["frames"], [1])
+        self.assertEqual(result["history"][1]["frames"], [1, 2])
+        self.assertEqual(result["history"][2]["frames"], [1, 2])
+        self.assertTrue(result["history"][2]["hit"])
+
+    def test_optimal_replaces_page_not_used_again(self):
+        result = simulate_optimal([1, 2, 3, 1, 2, 4], 3)
+
+        self.assertEqual(result["history"][5]["frames"], [4, 2, 3])
+        self.assertEqual(result["page_faults"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()
