@@ -1,0 +1,43 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Analysis Bot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Performance Analysis Bot</h1>
+        <p>Compare FIFO, LRU and Optimal algorithms.</p>
+
+        <label>FIFO Page Hits</label>
+        <input type="number" id="fifoHits" min="0">
+
+        <label>FIFO Page Faults</label>
+        <input type="number" id="fifoFaults" min="0">
+
+        <label>LRU Page Hits</label>
+        <input type="number" id="lruHits" min="0">
+
+        <label>LRU Page Faults</label>
+        <input type="number" id="lruFaults" min="0">
+
+        <label>Optimal Page Hits</label>
+        <input type="number" id="optimalHits" min="0">
+
+        <label>Optimal Page Faults</label>
+        <input type="number" id="optimalFaults" min="0">
+
+        <button onclick="analyzePerformance()">
+            Analyze Performance
+        </button>
+
+        <div id="output"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
