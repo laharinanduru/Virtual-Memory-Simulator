@@ -280,6 +280,133 @@ Writing guidelines:
         )
 
 
+def basic_performance_analysis(question, results=None, comparison=None, pages=None, frames=None):
+    """Provide a rule-based analysis of simulation or comparison results."""
+    if comparison and isinstance(comparison, list) and len(comparison) > 0:
+        best = min(comparison, key=lambda x: x.get("page_faults", float("inf")))
+        worst = max(comparison, key=lambda x: x.get("page_faults", -1))
+
+        summary_lines = ["Comparison Analysis:"]
+        for item in comparison:
+            algo = item.get("algorithm", "Unknown")
+            faults = item.get("page_faults", 0)
+            hits = item.get("page_hits", 0)
+            fault_rate = item.get("fault_rate", 0)
+            summary_lines.append(f"- {algo}: {faults} faults, {hits} hits ({fault_rate}% fault rate)")
+
+        summary_lines.append(
+            f"\nBest Performing: {best.get('algorithm')} with the lowest number of faults ({best.get('page_faults')})."
+        )
+        if best.get("algorithm") != worst.get("algorithm"):
+            summary_lines.append(
+                "Optimal generally produces the theoretical minimum faults, while LRU and FIFO depend on reference locality."
+            )
+        return "\n".join(summary_lines)
+
+    if results and isinstance(results, dict):
+        algo = results.get("algorithm", "Selected Algorithm")
+        faults = results.get("page_faults", 0)
+        hits = results.get("page_hits", 0)
+        total = results.get("total_references", faults + hits)
+        fault_rate = results.get("fault_rate", 0)
+        hit_rate = results.get("hit_rate", 0)
+
+        assessment = (
+            "High fault rate observed. Consider increasing frames or testing LRU/Optimal."
+            if fault_rate > 50
+            else "Good hit rate observed for this reference pattern."
+        )
+
+        return (
+            f"Simulation Analysis for {algo}:\n"
+            f"- Total references: {total}\n"
+            f"- Page hits: {hits} ({hit_rate}%)\n"
+            f"- Page faults: {faults} ({fault_rate}%)\n\n"
+            f"{assessment}"
+        )
+
+    return (
+        "No simulation results are available yet. Please enter a page-reference sequence, "
+        "specify RAM frames, and click 'Run simulation' or 'Compare selected algorithms' "
+        "first so I can analyze the results."
+    )
+
+
+def analyze_performance(question, results=None, comparison=None, pages=None, frames=None):
+    """Analyze virtual memory simulation performance using Gemini or rule-based logic."""
+    if not isinstance(question, str) or not question.strip():
+        question = "Which algorithm performs best?"
+
+    client = get_gemini_client()
+    if client is None:
+        return basic_performance_analysis(question, results, comparison, pages, frames)
+
+    context_parts = [f"Student question: {question}"]
+    if comparison:
+        context_parts.append(f"Comparison data: {comparison}")
+    if results:
+        context_parts.append(f"Simulation result: {results}")
+    if pages:
+        context_parts.append(f"Page references: {pages}")
+    if frames:
+        context_parts.append(f"RAM frames: {frames}")
+
+    context = "\n".join(context_parts)
+
+    prompt = f"""
+You are an operating systems performance analysis assistant for a Virtual Memory Simulator.
+
+Simulation Context:
+{context}
+
+Analyze the performance, compare page faults and hits, explain which algorithm was most efficient and why, in beginner-friendly language.
+"""
+
+    try:
+        response = generate_with_retry(client, prompt)
+        if response and response.text:
+            return response.text.strip()
+        return basic_performance_analysis(question, results, comparison, pages, frames)
+    except Exception as error:
+        print("Gemini Analysis Error:", error)
+        return basic_performance_analysis(question, results, comparison, pages, frames)
+
+
+def generate_virtual_memory_report(topic, requirements=""):
+    """Generate a structured educational report about virtual memory."""
+    if not isinstance(topic, str) or not topic.strip():
+        return "Please enter a valid report topic."
+
+    if not isinstance(requirements, str):
+        requirements = ""
+
+    topic = topic.strip()
+    requirements = requirements.strip()
+
+    client = get_gemini_client()
+    if client is None:
+        return (
+            f"Report on {topic}:\n"
+            "Virtual memory enables modern operating systems to allocate memory safely and efficiently "
+            "using paging, page tables, and page replacement strategies such as FIFO, LRU, and Optimal."
+        )
+
+    prompt = f"""
+Write an academic report on the virtual memory topic:
+Topic: {topic}
+Requirements: {requirements}
+"""
+    try:
+        response = generate_with_retry(client, prompt)
+        if response and response.text:
+            return response.text.strip()
+        return f"Report on {topic} generated."
+    except Exception as error:
+        print("Gemini Report Error:", error)
+        return "Report generation is temporarily unavailable."
+
+
+# Run the tutor bot directly for testing
 # Command-line interface for testing the tutor and report generator
 if __name__ == "__main__":
 

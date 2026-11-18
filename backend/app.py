@@ -1,4 +1,11 @@
 
+import os
+import sys
+
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
@@ -7,9 +14,13 @@ from algorithms import (
     simulate_lru,
     simulate_optimal
 )
+from tutor_routes import tutor_bp
 
 app = Flask(__name__)
 CORS(app)
+app.register_blueprint(tutor_bp)
+
+FRONTEND_DIR = os.path.abspath(os.path.join(backend_dir, "..", "frontend"))
 
 ALGORITHMS = {
     "FIFO": simulate_fifo,
@@ -19,6 +30,11 @@ ALGORITHMS = {
 
 # Memory configuration
 ADDRESS_BITS = 8
+ADDRESS_SPACE = 2 ** ADDRESS_BITS  # 256 bytes
+PAGE_SIZE = 16
+PAGE_BITS = 4
+OFFSET_BITS = 4
+TOTAL_VIRTUAL_PAGES = ADDRESS_SPACE // PAGE_SIZE  # 16
 ADDRESS_SPACE = 2 ** ADDRESS_BITS
 PAGE_SIZE = 16
 PAGE_BITS = 4
@@ -52,6 +68,7 @@ def translate_address(binary_address):
         "page_number": int(page_binary, 2),
         "page_binary": page_binary,
         "offset": int(offset_binary, 2),
+        "offset_binary": offset_binary,
         "offset_binary": offset_binary
     }
 
@@ -60,12 +77,13 @@ def build_page_table(frames):
     """Build a page table from the final frame list."""
 
     page_table = []
-
     for frame_number, page_number in enumerate(frames):
         if page_number is not None:
             page_table.append({
                 "page_number": page_number,
                 "frame_number": frame_number,
+                "valid": True,
+            })
                 "valid": True
             })
 
@@ -74,6 +92,10 @@ def build_page_table(frames):
 
 def enrich_history(history, translations):
     """Add logical and physical address information to simulation history."""
+    enriched_history = []
+    for index, step in enumerate(history):
+        frames = step["frames"]
+        page_number = step["page"]
 
     enriched_history = []
 
@@ -98,6 +120,27 @@ def enrich_history(history, translations):
             "offset_binary": translation["offset_binary"],
             "frame_number": frame_number,
             "physical_address": physical_address,
+            "physical_address_binary": format(physical_address, "08b"),
+        }
+        enriched_history.append(enriched_step)
+
+    return enriched_history
+
+
+def validate_frames(frames):
+    """Validate the number of physical memory frames."""
+    if type(frames) is not int or not 1 <= frames <= MAX_FRAMES:
+        raise ValueError("Frames must be an integer between 1 and 16.")
+
+
+def process_addresses(addresses):
+    """Validate addresses and return translations and page numbers."""
+    if not isinstance(addresses, list) or not addresses:
+        raise ValueError("Addresses must be a non-empty list.")
+
+    translations = [translate_address(address) for address in addresses]
+    pages = [translation["page_number"] for translation in translations]
+    return translations, pages
             "physical_address_binary": format(
                 physical_address, "08b"
             )
@@ -134,12 +177,20 @@ def process_addresses(addresses):
 
 @app.route("/")
 def home():
+    return send_from_directory(FRONTEND_DIR, "index.html")
+
+
+@app.route("/<path:path>", methods=["GET"])
+def static_proxy(path):
+    return send_from_directory(FRONTEND_DIR, path)
     return send_from_directory("..", "index.html")
 
 
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({
+        "status": "Backend is running",
+        "service": "Virtual Memory Simulator Backend"
         "status": "Backend is running"
     }), 200
 
@@ -148,6 +199,28 @@ def health():
 def translate():
     try:
         data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Request body must be a JSON object."}), 400
+
+        addresses = data.get("addresses")
+        if addresses:
+            translations, pages = process_addresses(addresses)
+            return jsonify({
+                "address_bits": ADDRESS_BITS,
+                "address_space": ADDRESS_SPACE,
+                "page_size": PAGE_SIZE,
+                "page_bits": PAGE_BITS,
+                "offset_bits": OFFSET_BITS,
+                "total_virtual_pages": TOTAL_VIRTUAL_PAGES,
+                "translations": translations,
+            }), 200
+
+        binary_address = data.get("address")
+        if binary_address:
+            translation = translate_address(binary_address)
+            return jsonify(translation), 200
+
+        return jsonify({"error": "Provide either 'address' or 'addresses'."}), 400
 
         if not isinstance(data, dict):
             return jsonify({
@@ -167,6 +240,27 @@ def translate():
 def simulate():
     try:
         data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({
+                "error": "Request body must be a valid JSON object."
+            }), 400
+
+        frames = data.get("frames")
+        validate_frames(frames)
+
+        algorithm_name = data.get("algorithm", "")
+        if not isinstance(algorithm_name, str):
+            return jsonify({
+                "error": "'algorithm' must be FIFO, LRU, or Optimal."
+            }), 400
+
+        algorithm_name = algorithm_name.strip().upper()
+        if algorithm_name not in ALGORITHMS:
+            return jsonify({
+                "error": "Unsupported algorithm. Choose FIFO, LRU, or Optimal."
+            }), 400
+
+        translations = None
 
         if not isinstance(data, dict):
             return jsonify({
@@ -186,6 +280,76 @@ def simulate():
         # 8-bit logical address mode
         if "addresses" in data:
             translations, pages = process_addresses(data["addresses"])
+
+        # Page-number mode (0 to 15)
+        elif "pages" in data:
+            pages = data["pages"]
+            if (
+                not isinstance(pages, list)
+                or not pages
+                or any(type(page) is not int for page in pages)
+                or any(not 0 <= page < TOTAL_VIRTUAL_PAGES for page in pages)
+            ):
+                return jsonify({
+                    "error": "Pages must be a non-empty list of integers between 0 and 15."
+                }), 400
+        else:
+            return jsonify({
+                "error": "Provide either 'addresses' or 'pages'."
+            }), 400
+
+        result = ALGORITHMS[algorithm_name](pages, frames)
+
+        if translations is not None:
+            result["history"] = enrich_history(result["history"], translations)
+            result["translations"] = translations
+
+        result["page_table"] = build_page_table(
+            result["history"][-1]["frames"]
+        )
+        result["algorithm"] = algorithm_name
+        result["frames_count"] = frames
+
+        return jsonify(result), 200
+
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+
+@app.route("/api/compare", methods=["POST"])
+def compare():
+    """Run only the algorithms selected by the user."""
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({
+                "error": "Request body must be a JSON object."
+            }), 400
+
+        frames = data.get("frames")
+        validate_frames(frames)
+
+        translations = None
+
+        if "addresses" in data:
+            translations, pages = process_addresses(data["addresses"])
+        elif "pages" in data:
+            pages = data["pages"]
+            if (
+                not isinstance(pages, list)
+                or not pages
+                or any(type(page) is not int for page in pages)
+                or any(not 0 <= page < TOTAL_VIRTUAL_PAGES for page in pages)
+            ):
+                return jsonify({
+                    "error": "Pages must be a non-empty list of integers between 0 and 15."
+                }), 400
+        else:
+            return jsonify({
+                "error": "Provide either 'addresses' or 'pages'."
+            }), 400
+
+        selected_algorithms = data.get("algorithms")
 
             result = ALGORITHMS[algorithm_name](pages, frames)
 
@@ -280,6 +444,33 @@ def compare():
             name for name in selected_algorithms
             if name not in ALGORITHMS
         ]
+        if invalid_algorithms:
+            return jsonify({
+                "error": "Invalid algorithm(s): " + ", ".join(invalid_algorithms)
+            }), 400
+
+        comparison = {}
+        for algorithm_name in selected_algorithms:
+            result = ALGORITHMS[algorithm_name](pages, frames)
+
+            if translations is not None:
+                history = enrich_history(result["history"], translations)
+            else:
+                history = result["history"]
+
+        selected_algorithms = [
+            name.strip().upper() for name in selected_algorithms
+        ]
+
+        if len(set(selected_algorithms)) != len(selected_algorithms):
+            return jsonify({
+                "error": "Duplicate algorithms are not allowed."
+            }), 400
+
+        invalid_algorithms = [
+            name for name in selected_algorithms
+            if name not in ALGORITHMS
+        ]
 
         if invalid_algorithms:
             return jsonify({
@@ -309,6 +500,21 @@ def compare():
                 "history": history,
                 "page_table": build_page_table(
                     result["history"][-1]["frames"]
+                ),
+            }
+
+        response_data = {
+            "message": "Algorithm comparison completed successfully.",
+            "selected_algorithms": selected_algorithms,
+            "comparison": comparison,
+            "results": list(comparison.values()),
+        }
+
+        if translations is not None:
+            response_data["translations"] = translations
+
+        return jsonify(response_data), 200
+
                 )
             }
 

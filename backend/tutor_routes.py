@@ -3,6 +3,8 @@ from flask import Blueprint, request, jsonify
 
 from bots import (
     virtual_memory_tutor,
+    generate_virtual_memory_report,
+    analyze_performance
     generate_virtual_memory_report
 )
 
@@ -48,3 +50,28 @@ def generate_report():
 
     except Exception as error:
         return jsonify({"error": "Report generation failed."}), 500
+
+
+# 3. Performance Analysis Bot API
+@tutor_bp.route("/api/analyze", methods=["POST"])
+def analyze():
+    data = request.get_json(silent=True) or {}
+
+    question = data.get("question", "").strip()
+    results = data.get("results")
+    comparison = data.get("comparison")
+    pages = data.get("pages")
+    frames = data.get("frames")
+
+    try:
+        answer = analyze_performance(
+            question=question,
+            results=results,
+            comparison=comparison,
+            pages=pages,
+            frames=frames
+        )
+        return jsonify({"answer": answer}), 200
+
+    except Exception as error:
+        return jsonify({"error": "Analysis bot could not generate an answer."}), 500

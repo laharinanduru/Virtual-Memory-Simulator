@@ -51,38 +51,62 @@
           <div class="form-grid">
             <label class="field field-wide">
               <span>Page-reference sequence</span>
-<input
-  id="pagesInput"
-  type="text"
-  placeholder="Enter page numbers, e.g. 2, 3, 2, 1"
-  autocomplete="off"
-  required
-/>              <small>Enter non-negative page numbers separated by commas or spaces.</small>
+              <input
+                id="pagesInput"
+                type="text"
+                placeholder="Enter page numbers (0-15) or 8-bit addresses (e.g. 2, 3, 2, 1 or 00010010, 00100100)"
+                autocomplete="off"
+                required
+              />
+              <small>8-bit Virtual Memory: Enter page numbers (0–15) or 8-bit binary addresses separated by commas or spaces.</small>
             </label>
             <label class="field">
               <span>RAM frames</span>
-<input
-  id="framesInput"
-  type="number"
-  min="1"
-  step="1"
-  placeholder="Enter number of frames"
-  required
-/>              <small>Number of available memory slots.</small>
+              <input
+                id="framesInput"
+                type="number"
+                min="1"
+                max="16"
+                step="1"
+                placeholder="Enter number of frames (1-16)"
+                required
+              />
+              <small>Number of available memory slots (max 16 frames).</small>
             </label>
             <label class="field">
-              <span>Replacement algorithm</span>
+              <span>Replacement algorithm (single run)</span>
               <select id="algorithmInput">
                 <option value="FIFO">FIFO - First In, First Out</option>
                 <option value="LRU">LRU - Least Recently Used</option>
                 <option value="OPTIMAL">Optimal - Future-aware</option>
               </select>
-              <small>Choose how a page is selected for replacement.</small>
+              <small>Choose algorithm for the single simulation run.</small>
             </label>
+            <div class="field field-wide" id="compareSelectField">
+              <span>Select algorithms to compare</span>
+              <div class="algorithm-checkboxes">
+                <label class="checkbox-pill">
+                  <input type="checkbox" name="compareAlgorithms" value="FIFO" checked />
+                  <span class="pill-title">FIFO</span>
+                  <span class="pill-desc">First In, First Out</span>
+                </label>
+                <label class="checkbox-pill">
+                  <input type="checkbox" name="compareAlgorithms" value="LRU" checked />
+                  <span class="pill-title">LRU</span>
+                  <span class="pill-desc">Least Recently Used</span>
+                </label>
+                <label class="checkbox-pill">
+                  <input type="checkbox" name="compareAlgorithms" value="OPTIMAL" checked />
+                  <span class="pill-title">Optimal</span>
+                  <span class="pill-desc">Future-aware benchmark</span>
+                </label>
+              </div>
+              <small>Select 2 or 3 algorithms to compare side-by-side.</small>
+            </div>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="runButton">Run simulation <span>→</span></button>
-            <button type="button" class="btn btn-secondary" id="compareButton">Compare all algorithms</button>
+            <button type="button" class="btn btn-secondary" id="compareButton">Compare selected algorithms</button>
             <button type="button" class="btn btn-quiet" id="resetButton">Reset</button>
           </div>
           <p class="message" id="formMessage" role="status" aria-live="polite"></p>

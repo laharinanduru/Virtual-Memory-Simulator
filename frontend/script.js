@@ -20,49 +20,61 @@ function setMessage(message, type = "") {
   formMessage.className = `message ${type}`;
 }
 
-// Read and validate the page-reference sequence
-function parsePages() {
+// Read and validate the page-reference sequence or 8-bit binary addresses
+function parseInputSequence() {
   const raw = pagesInput.value.trim();
 
   if (!raw) {
-    throw new Error("Enter a page-reference sequence.");
+    throw new Error(
+      "Enter a page-reference sequence (0-15) or 8-bit binary addresses."
+    );
   }
 
   const parts = raw.split(/[\s,]+/).filter(Boolean);
 
+  if (!parts.length) {
+    throw new Error("Enter at least one page reference or address.");
+  }
+
+  // Check if every item is an 8-bit binary string (e.g. "00010010")
+  const isBinaryAddressMode = parts.every((part) => /^[01]{8}$/.test(part));
+
+  if (isBinaryAddressMode) {
+    return { addresses: parts };
+  }
+
+  // Page number mode (0 to 15 in 8-bit virtual memory)
   const pages = parts.map((part) => {
     if (!/^\d+$/.test(part)) {
       throw new Error(
-        `"${part}" is not a valid non-negative integer page number.`
+        `"${part}" is not a valid page number (0-15) or 8-bit binary address.`
       );
     }
 
     const number = Number(part);
 
-    if (!Number.isSafeInteger(number)) {
-      throw new Error("Page numbers must be safe integers.");
+    if (number < 0 || number > 15) {
+      throw new Error(
+        `Page number "${number}" is out of range. 8-bit virtual memory supports pages 0 to 15.`
+      );
     }
 
     return number;
   });
 
-  if (!pages.length) {
-    throw new Error("Enter at least one page reference.");
-  }
-
-  return pages;
+  return { pages };
 }
 
 // Read and validate simulation inputs
 function readInput() {
-  const pages = parsePages();
+  const sequence = parseInputSequence();
   const frames = Number(framesInput.value);
 
-  if (!Number.isInteger(frames) || frames < 1) {
-    throw new Error("RAM frames must be a positive integer.");
+  if (!Number.isInteger(frames) || frames < 1 || frames > 16) {
+    throw new Error("RAM frames must be an integer between 1 and 16.");
   }
 
-  return { pages, frames };
+  return { ...sequence, frames };
 }
 
 // Send a request to the Flask backend
@@ -231,6 +243,39 @@ document.getElementById("faultRateMetric").textContent =
 
   tbody.appendChild(outcomeRow);
 
+  // If 8-bit addresses were used, display logical and physical address rows
+  if (
+    result.history &&
+    result.history.length > 0 &&
+    result.history[0].logical_address
+  ) {
+    const addressRow = document.createElement("tr");
+    const addressLabel = document.createElement("td");
+    addressLabel.textContent = "Logical Address (8-bit)";
+    addressRow.appendChild(addressLabel);
+
+    result.history.forEach((step) => {
+      const td = document.createElement("td");
+      td.textContent = `${step.logical_address} (Page: ${step.page_number}, Offset: ${step.offset})`;
+      addressRow.appendChild(td);
+    });
+
+    tbody.appendChild(addressRow);
+
+    const physicalRow = document.createElement("tr");
+    const physicalLabel = document.createElement("td");
+    physicalLabel.textContent = "Physical Address (8-bit)";
+    physicalRow.appendChild(physicalLabel);
+
+    result.history.forEach((step) => {
+      const td = document.createElement("td");
+      td.textContent = `${step.physical_address_binary} (decimal ${step.physical_address})`;
+      physicalRow.appendChild(td);
+    });
+
+    tbody.appendChild(physicalRow);
+  }
+
   // Make results visible immediately
   resultsSection.classList.remove("hidden");
 
@@ -364,11 +409,18 @@ async function handleRunSimulation(event) {
     runButton.disabled = true;
     runButton.setAttribute("aria-busy", "true");
 
-    const result = await postJson("/api/simulate", {
-      pages: input.pages,
+    const payload = {
       frames: input.frames,
       algorithm: algorithm
-    });
+    };
+
+    if (input.addresses) {
+      payload.addresses = input.addresses;
+    } else {
+      payload.pages = input.pages;
+    }
+
+    const result = await postJson("/api/simulate", payload);
 
     latestInput = input;
     comparisonResults = [];
@@ -394,34 +446,50 @@ runButton.type = "submit";
 // Register the form handler only once in this script
 form.addEventListener("submit", handleRunSimulation);
 
-// COMPARE ALL ALGORITHMS
+// COMPARE SELECTED ALGORITHMS
 compareButton.addEventListener("click", async () => {
   try {
     const input = readInput();
 
+    // Read which algorithms the user selected for comparison
+    const checkedBoxes = Array.from(
+      document.querySelectorAll('input[name="compareAlgorithms"]:checked')
+    );
+    const selectedAlgorithms = checkedBoxes.map((cb) => cb.value);
+
+    if (selectedAlgorithms.length < 2) {
+      throw new Error(
+        "Please select at least 2 algorithms to compare (e.g. FIFO and LRU)."
+      );
+    }
+
     compareButton.disabled = true;
 
-    setMessage("Comparing FIFO, LRU, and Optimal…");
-
-    const algorithms = ["FIFO", "LRU", "OPTIMAL"];
-
-    const results = await Promise.all(
-      algorithms.map((algorithm) =>
-        postJson("/api/simulate", {
-          pages: input.pages,
-          frames: input.frames,
-          algorithm: algorithm
-        })
-      )
+    setMessage(
+      `Comparing selected algorithms: ${selectedAlgorithms.join(", ")}…`
     );
 
-    latestInput = input;
+    const payload = {
+      frames: input.frames,
+      algorithms: selectedAlgorithms
+    };
 
-    renderResult(results[0], "FIFO");
+    if (input.addresses) {
+      payload.addresses = input.addresses;
+    } else {
+      payload.pages = input.pages;
+    }
+
+    const data = await postJson("/api/compare", payload);
+
+    latestInput = input;
+    const results = data.results || Object.values(data.comparison);
+
+    renderResult(results[0], results[0].algorithm);
     renderComparison(results);
 
     setMessage(
-      "Comparison completed. Lower page-fault counts mean fewer faults for this input.",
+      `Comparison of ${selectedAlgorithms.join(", ")} completed successfully.`,
       "success"
     );
   } catch (error) {
@@ -436,6 +504,12 @@ resetButton.addEventListener("click", () => {
   pagesInput.value = "";
   framesInput.value = "";
   algorithmInput.selectedIndex = 0;
+
+  document
+    .querySelectorAll('input[name="compareAlgorithms"]')
+    .forEach((cb) => {
+      cb.checked = true;
+    });
 
   latestResult = null;
   latestInput = null;
