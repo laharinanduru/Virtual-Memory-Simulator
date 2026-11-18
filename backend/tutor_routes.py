@@ -5,6 +5,7 @@ from bots import (
     virtual_memory_tutor,
     generate_virtual_memory_report,
     analyze_performance
+    generate_virtual_memory_report
 )
 
 # Create a separate group of Flask routes
